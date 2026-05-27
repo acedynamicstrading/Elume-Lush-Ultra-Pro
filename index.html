@@ -1219,8 +1219,10 @@
 
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
-// Set your ngrok URL here — clients never see this
 const BACKEND_URL = 'https://data-silicon-studio.ngrok-free.dev';
+
+// Required on every fetch to bypass ngrok's browser interstitial page
+const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true' };
 
 function getBackendUrl() {
   const input = document.getElementById('backend-url');
@@ -1253,11 +1255,6 @@ const state = {
   faceMesh: null,
   camera: null,
 };
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-function getBackendUrl() {
-  return document.getElementById('backend-url').value.replace(/\/$/, '');
-}
 
 function toast(msg, type = '') {
   const el = document.getElementById('toast');
@@ -1294,7 +1291,10 @@ document.addEventListener('click', e => {
 async function checkHealth() {
   const dot = document.getElementById('status-dot');
   try {
-    const r = await fetch(getBackendUrl() + '/health', { signal: AbortSignal.timeout(5000) });
+    const r = await fetch(getBackendUrl() + '/health', {
+      headers: NGROK_HEADERS,
+      signal: AbortSignal.timeout(5000)
+    });
     dot.className = r.ok ? 'status-dot connected' : 'status-dot error';
   } catch {
     dot.className = 'status-dot error';
@@ -1602,7 +1602,7 @@ async function runAnalysis() {
 
     setProgress(40);
 
-    const res = await fetch(url, { method: 'POST', body: fd });
+    const res = await fetch(url, { method: 'POST', body: fd, headers: NGROK_HEADERS });
 
     setLog('log-sending', 'done');
     setProgress(65);
@@ -1625,6 +1625,8 @@ async function runAnalysis() {
     setProgress(100);
 
     renderResults(data);
+    // Auto-generate all 4 styles sequentially after analysis
+    autoGenerateAll();
 
   } catch (err) {
     setLog('log-sending', 'error');
@@ -1769,9 +1771,23 @@ function renderResults(data) {
         </div>
       ` : ''}
 
-      <button class="style-generate-btn" onclick="generateStyle(${i})">
+      <button class="style-generate-btn" id="gen-btn-${i}" onclick="generateStyle(${i})">
         <span>Apply This Style to My Photo</span>
       </button>
+
+      <div class="style-result-wrap" id="style-result-${i}" style="display:none; margin-top:1.25rem;">
+        <span class="style-prompt-label" style="display:block;margin-bottom:0.5rem;">Generated Look</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;border-radius:3px;overflow:hidden;">
+          <div style="position:relative;">
+            <span style="position:absolute;bottom:0.4rem;left:0.5rem;font-size:0.48rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.5);z-index:1;">Original</span>
+            <img id="result-orig-${i}" style="width:100%;display:block;object-fit:cover;" alt="Original">
+          </div>
+          <div style="position:relative;">
+            <span style="position:absolute;bottom:0.4rem;right:0.5rem;font-size:0.48rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(201,169,110,0.8);z-index:1;">Generated</span>
+            <img id="result-gen-${i}" style="width:100%;display:block;object-fit:cover;" alt="Generated">
+          </div>
+        </div>
+      </div>
     </div>`;
   }).join('');
 
@@ -1790,6 +1806,14 @@ function renderResults(data) {
   setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 }
 
+// ── Auto-generate all 4 styles sequentially ────────────────────────────────
+async function autoGenerateAll() {
+  const styles = window._lastStyles || [];
+  for (let i = 0; i < styles.length; i++) {
+    await generateStyle(i);
+  }
+}
+
 // ── Generate style ─────────────────────────────────────────────────────────
 async function generateStyle(idx) {
   const style = (window._lastStyles || [])[idx];
@@ -1798,9 +1822,8 @@ async function generateStyle(idx) {
     return;
   }
 
-  const btn = document.querySelectorAll('.style-generate-btn')[idx];
-  btn.textContent = '⏳ Generating…';
-  btn.disabled = true;
+  const btn = document.getElementById('gen-btn-' + idx);
+  if (btn) { btn.querySelector('span').innerHTML = '<span class="spinner"></span>Generating…'; btn.disabled = true; }
 
   try {
     const fd = new FormData();
@@ -1811,7 +1834,11 @@ async function generateStyle(idx) {
     fd.append('guidance', '8.0');
     fd.append('strength', '0.95');
 
-    const res = await fetch(getBackendUrl() + '/generate', { method: 'POST', body: fd });
+    const res = await fetch(getBackendUrl() + '/generate', {
+      method: 'POST',
+      body: fd,
+      headers: NGROK_HEADERS,
+    });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -1820,25 +1847,25 @@ async function generateStyle(idx) {
 
     const data = await res.json();
 
-    // Show result in a new tab
-    const win = window.open('', '_blank');
-    win.document.write(`
-      <!DOCTYPE html><html><head>
-      <title>ÉLUME — ${style.name}</title>
-      <style>body{margin:0;background:#0E0D0B;display:flex;gap:2px;} img{max-width:50%;max-height:100vh;object-fit:contain;}</style>
-      </head><body>
-      <img src="data:image/jpeg;base64,${data.original}" alt="Original">
-      <img src="data:image/jpeg;base64,${data.result}" alt="Result">
-      </body></html>
-    `);
+    // Show result inline in the card
+    const wrap = document.getElementById('style-result-' + idx);
+    const origImg = document.getElementById('result-orig-' + idx);
+    const genImg  = document.getElementById('result-gen-'  + idx);
+    if (wrap && origImg && genImg) {
+      origImg.src = 'data:image/jpeg;base64,' + data.original;
+      genImg.src  = 'data:image/jpeg;base64,' + data.result;
+      wrap.style.display = 'block';
+    }
 
-    toast('Style generated — opening preview', 'success');
+    if (btn) { btn.querySelector('span').textContent = 'Regenerate This Style →'; }
+    toast('Style ' + (idx + 1) + ' generated ✓', 'success');
 
   } catch (err) {
-    toast('Generation error: ' + err.message, 'error');
+    if (btn) { btn.querySelector('span').textContent = 'Retry Generation →'; }
+    toast('Style ' + (idx + 1) + ' error: ' + err.message, 'error');
+    console.error(err);
   } finally {
-    btn.textContent = 'Generate This Style →';
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 </script>
