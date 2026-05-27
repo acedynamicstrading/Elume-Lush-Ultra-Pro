@@ -1829,10 +1829,12 @@ async function generateStyle(idx) {
     const fd = new FormData();
     fd.append('image', state.imageBlob, 'photo.jpg');
     fd.append('custom_prompt', style.sdxl_prompt || style.name);
+    fd.append('extra_negative', '');
     fd.append('seed', String(Math.floor(Math.random() * 9999)));
     fd.append('steps', '30');
     fd.append('guidance', '8.0');
     fd.append('strength', '0.95');
+    fd.append('dilation', '28');
 
     const res = await fetch(getBackendUrl() + '/generate', {
       method: 'POST',
@@ -1847,8 +1849,7 @@ async function generateStyle(idx) {
 
     const data = await res.json();
 
-    // Show result inline in the card
-    const wrap = document.getElementById('style-result-' + idx);
+    const wrap    = document.getElementById('style-result-' + idx);
     const origImg = document.getElementById('result-orig-' + idx);
     const genImg  = document.getElementById('result-gen-'  + idx);
     if (wrap && origImg && genImg) {
@@ -1857,11 +1858,11 @@ async function generateStyle(idx) {
       wrap.style.display = 'block';
     }
 
-    if (btn) { btn.querySelector('span').textContent = 'Regenerate This Style →'; }
+    if (btn) btn.querySelector('span').textContent = 'Regenerate This Style →';
     toast('Style ' + (idx + 1) + ' generated ✓', 'success');
 
   } catch (err) {
-    if (btn) { btn.querySelector('span').textContent = 'Retry Generation →'; }
+    if (btn) btn.querySelector('span').textContent = 'Retry Generation →';
     toast('Style ' + (idx + 1) + ' error: ' + err.message, 'error');
     console.error(err);
   } finally {
