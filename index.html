@@ -3,995 +3,1841 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ÉLUME · AI Hair Studio</title>
+<title>ÉLUME — AI Hair Studio</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Montserrat:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --ink:      #0d0b09;
-    --ink-2:    #1c1915;
-    --ink-3:    #2e2b27;
-    --gold:     #c8a96e;
-    --gold-lt:  #e8d5b0;
-    --cream:    #f6f0e6;
-    --ivory:    #faf6ef;
-    --rose:     #8b3a52;
-    --mist:     #9a9590;
-    --border:   rgba(200,169,110,.22);
-    --r:        2px;
-  }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold: #C9A96E;
+    --gold-light: #E8D5B0;
+    --gold-dark: #8B6914;
+    --cream: #FAF7F2;
+    --cream-deep: #F2EDE4;
+    --noir: #0E0D0B;
+    --charcoal: #1C1A16;
+    --ash: #2E2C27;
+    --mist: #8A8680;
+    --border: rgba(201,169,110,0.25);
+    --border-strong: rgba(201,169,110,0.5);
+    --font-display: 'Cormorant Garamond', serif;
+    --font-body: 'Montserrat', sans-serif;
+  }
+
   html { scroll-behavior: smooth; }
 
   body {
-    background: var(--ink);
+    background: var(--noir);
     color: var(--cream);
-    font-family: 'Jost', sans-serif;
+    font-family: var(--font-body);
     font-weight: 300;
-    font-size: 15px;
-    line-height: 1.7;
+    min-height: 100vh;
     overflow-x: hidden;
-    cursor: default;
   }
 
-  /* grain overlay */
+  /* ── Background texture ── */
   body::before {
     content: '';
-    position: fixed; inset: 0; z-index: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-    background-size: 180px;
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 10% 20%, rgba(201,169,110,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 90% 80%, rgba(201,169,110,0.03) 0%, transparent 60%);
     pointer-events: none;
+    z-index: 0;
   }
 
-  /* ── Layout ── */
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 2rem; position: relative; z-index: 1; }
-  section { padding: 6rem 0; }
-
-  /* ── NAV ── */
-  nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 1.4rem 2.5rem;
-    border-bottom: 1px solid transparent;
-    transition: border-color .4s, background .4s;
-  }
-  nav.scrolled {
-    background: rgba(13,11,9,.88);
-    backdrop-filter: blur(14px);
-    border-color: var(--border);
-  }
-  .nav-logo {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.6rem; font-weight: 300; letter-spacing: .22em;
-    color: var(--gold); text-decoration: none;
-  }
-  .nav-links { display: flex; gap: 2.4rem; list-style: none; }
-  .nav-links a {
-    font-size: .75rem; letter-spacing: .15em; text-transform: uppercase;
-    color: var(--mist); text-decoration: none; transition: color .25s;
-  }
-  .nav-links a:hover { color: var(--gold-lt); }
-  .nav-cta {
-    font-size: .72rem; letter-spacing: .14em; text-transform: uppercase;
-    color: var(--gold); border: 1px solid var(--border);
-    padding: .5rem 1.4rem; text-decoration: none; transition: all .25s;
-  }
-  .nav-cta:hover { background: rgba(200,169,110,.1); border-color: var(--gold); }
-
-  /* ── HERO ── */
-  #hero {
-    min-height: 100vh;
-    display: grid; grid-template-columns: 1fr 1fr; align-items: center;
-    padding: 8rem 2rem 4rem;
-    max-width: 1120px; margin: 0 auto;
-    position: relative; z-index: 1;
-  }
-  .hero-left { padding-right: 4rem; }
-  .hero-eyebrow {
-    font-size: .7rem; letter-spacing: .3em; text-transform: uppercase;
-    color: var(--gold); margin-bottom: 1.4rem;
-    display: flex; align-items: center; gap: .8rem;
-  }
-  .hero-eyebrow::before {
-    content: ''; display: block; width: 2rem; height: 1px; background: var(--gold);
-  }
-  .hero-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: clamp(3.2rem, 5.5vw, 5.2rem);
-    font-weight: 300; line-height: 1.08;
-    letter-spacing: -.01em;
-    color: var(--ivory);
-    margin-bottom: 1.8rem;
-  }
-  .hero-title em { font-style: italic; color: var(--gold); }
-  .hero-sub {
-    font-size: .9rem; color: var(--mist); max-width: 38ch;
-    margin-bottom: 2.8rem; line-height: 1.8;
-  }
-  .btn-primary {
-    display: inline-flex; align-items: center; gap: .7rem;
-    background: var(--gold); color: var(--ink);
-    font-family: 'Jost', sans-serif; font-size: .72rem;
-    font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
-    padding: .85rem 2.2rem; text-decoration: none;
-    border: none; cursor: pointer; transition: all .25s;
-  }
-  .btn-primary:hover { background: var(--gold-lt); }
-  .btn-ghost {
-    display: inline-flex; align-items: center; gap: .6rem;
-    background: transparent; color: var(--cream);
-    font-family: 'Jost', sans-serif; font-size: .72rem;
-    font-weight: 400; letter-spacing: .14em; text-transform: uppercase;
-    padding: .85rem 2rem; border: 1px solid var(--border);
-    cursor: pointer; transition: all .25s; text-decoration: none;
-  }
-  .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
-  .hero-btns { display: flex; gap: 1rem; flex-wrap: wrap; }
-
-  /* hero right - upload zone */
-  .hero-visual {
+  /* ── Header ── */
+  header {
     position: relative;
-    background: var(--ink-2);
-    border: 1px solid var(--border);
-    aspect-ratio: 4/5;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 1rem; overflow: hidden;
-  }
-  .hero-visual::before {
-    content: ''; position: absolute; inset: 0;
-    background: radial-gradient(ellipse 70% 60% at 50% 30%, rgba(200,169,110,.06) 0%, transparent 70%);
-  }
-  .upload-idle { text-align: center; z-index: 1; }
-  .upload-icon {
-    width: 56px; height: 56px; margin: 0 auto 1rem;
-    border: 1px solid var(--border); display: flex;
-    align-items: center; justify-content: center;
-  }
-  .upload-icon svg { width: 24px; height: 24px; stroke: var(--gold); fill: none; stroke-width: 1.5; }
-  .upload-idle p { font-size: .8rem; color: var(--mist); letter-spacing: .06em; }
-  .upload-idle span { font-size: .7rem; color: var(--gold); letter-spacing: .12em; text-transform: uppercase; }
-  .drop-zone {
-    position: absolute; inset: 0; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .drop-zone input { display: none; }
-  #hero-preview {
-    position: absolute; inset: 0; object-fit: cover;
-    opacity: 0; transition: opacity .5s;
-  }
-  #hero-preview.show { opacity: 1; }
-  .corner-mark {
-    position: absolute; width: 20px; height: 20px;
-    border-color: var(--gold); border-style: solid; border-width: 0;
-  }
-  .corner-mark.tl { top: 12px; left: 12px; border-top-width: 1px; border-left-width: 1px; }
-  .corner-mark.tr { top: 12px; right: 12px; border-top-width: 1px; border-right-width: 1px; }
-  .corner-mark.bl { bottom: 12px; left: 12px; border-bottom-width: 1px; border-left-width: 1px; }
-  .corner-mark.br { bottom: 12px; right: 12px; border-bottom-width: 1px; border-right-width: 1px; }
-
-  /* ── DIVIDER ── */
-  .rule { width: 100%; height: 1px; background: var(--border); }
-  .section-label {
-    font-size: .68rem; letter-spacing: .28em; text-transform: uppercase;
-    color: var(--gold); display: flex; align-items: center; gap: 1rem;
-    margin-bottom: 3.5rem;
-  }
-  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-  .section-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: clamp(2rem, 3.5vw, 3.2rem);
-    font-weight: 300; line-height: 1.15;
-    color: var(--ivory); margin-bottom: 1rem;
-  }
-  .section-title em { font-style: italic; color: var(--gold-lt); }
-
-  /* ── ANALYSE SECTION ── */
-  #analyse { background: var(--ink-2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .analyse-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: start;
-  }
-  .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin: 1.5rem 0; }
-  .metric-box {
-    background: var(--ink-3); border: 1px solid var(--border);
-    padding: .9rem 1rem;
-  }
-  .metric-box label {
-    display: block; font-size: .65rem; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--mist); margin-bottom: .3rem;
-  }
-  .metric-box input, .metric-box select {
-    width: 100%; background: transparent; border: none;
-    color: var(--cream); font-family: 'Jost', sans-serif;
-    font-size: .9rem; font-weight: 300; outline: none;
-    padding: 0;
-  }
-  .metric-box select option { background: var(--ink-3); }
-  .analyse-btn {
-    width: 100%; margin-top: 1rem;
-    background: transparent; border: 1px solid var(--gold);
-    color: var(--gold); font-family: 'Jost', sans-serif;
-    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
-    padding: .9rem; cursor: pointer; transition: all .25s;
-    display: flex; align-items: center; justify-content: center; gap: .6rem;
-  }
-  .analyse-btn:hover { background: rgba(200,169,110,.1); }
-  .analyse-btn.loading { opacity: .6; pointer-events: none; }
-  .photo-upload-row {
-    display: flex; align-items: center; gap: .8rem; margin: 1rem 0;
-    padding: .7rem 1rem; border: 1px dashed var(--border);
-    cursor: pointer; transition: border-color .25s;
-  }
-  .photo-upload-row:hover { border-color: var(--gold); }
-  .photo-upload-row input { display: none; }
-  .photo-upload-row span { font-size: .75rem; color: var(--mist); }
-  .photo-upload-row .photo-name { color: var(--gold-lt); font-size: .75rem; }
-
-  /* style cards */
-  .style-cards { display: grid; gap: 1px; background: var(--border); }
-  .style-card {
-    background: var(--ink-2); padding: 1.5rem;
-    display: grid; grid-template-columns: auto 1fr auto; gap: 1rem;
-    align-items: start; cursor: pointer;
-    transition: background .2s;
-    border-left: 3px solid transparent;
-  }
-  .style-card:hover, .style-card.active { background: var(--ink-3); border-color: var(--gold); }
-  .card-num {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 2rem; font-weight: 300; color: var(--border);
-    line-height: 1; user-select: none;
-    transition: color .2s;
-  }
-  .style-card:hover .card-num, .style-card.active .card-num { color: var(--gold); }
-  .card-body {}
-  .card-name {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.2rem; font-weight: 400; color: var(--ivory);
-    margin-bottom: .2rem;
-  }
-  .card-why { font-size: .8rem; color: var(--mist); line-height: 1.5; }
-  .card-apply {
-    font-size: .65rem; letter-spacing: .1em; text-transform: uppercase;
-    color: var(--gold); white-space: nowrap; margin-top: .3rem;
-  }
-  .card-expand {
-    max-height: 0; overflow: hidden; transition: max-height .35s ease;
-    grid-column: 1/-1;
-  }
-  .style-card.active .card-expand { max-height: 400px; }
-  .card-expand-inner {
-    border-top: 1px solid var(--border); padding-top: 1rem; margin-top: .5rem;
-    display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
-  }
-  .mini-label {
-    font-size: .64rem; letter-spacing: .14em; text-transform: uppercase;
-    color: var(--gold); margin-bottom: .4rem;
-  }
-  .mini-val { font-size: .82rem; color: var(--cream); line-height: 1.6; }
-
-  /* ── GENERATE ── */
-  #generate { }
-  .generate-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
-  .gen-photo-zone {
-    background: var(--ink-2); border: 1px solid var(--border);
-    aspect-ratio: 4/5; position: relative; overflow: hidden;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-  }
-  .gen-photo-zone img {
-    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-    opacity: 0; transition: opacity .5s;
-  }
-  .gen-photo-zone img.show { opacity: 1; }
-  .gen-photo-zone .ph {
-    font-size: .75rem; color: var(--mist); text-align: center;
-    letter-spacing: .06em; z-index: 1;
-  }
-  .gen-photo-zone input { display: none; }
-  .gen-controls {}
-  .gen-field { margin-bottom: 1.2rem; }
-  .gen-label {
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: .65rem; letter-spacing: .14em; text-transform: uppercase;
-    color: var(--mist); margin-bottom: .5rem;
-  }
-  .gen-label span { color: var(--gold); font-variant-numeric: tabular-nums; }
-  textarea.gen-input, input.gen-input {
-    width: 100%; background: var(--ink-2); border: 1px solid var(--border);
-    color: var(--cream); font-family: 'Jost', sans-serif;
-    font-size: .85rem; padding: .75rem 1rem; outline: none;
-    transition: border-color .2s; resize: none;
-  }
-  textarea.gen-input:focus, input.gen-input:focus { border-color: var(--gold); }
-  .gen-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .8rem; }
-  input[type=range] {
-    width: 100%; -webkit-appearance: none; appearance: none;
-    height: 1px; background: var(--border);
-    outline: none; cursor: pointer;
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 12px; height: 12px; background: var(--gold);
-    border-radius: 50%; cursor: pointer;
-    transition: transform .15s;
-  }
-  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.3); }
-  .result-panel {
-    margin-top: 1.2rem;
-    display: grid; grid-template-columns: 1fr 1fr; gap: .6rem;
-  }
-  .result-img-wrap {
-    aspect-ratio: 4/5; background: var(--ink-2); border: 1px solid var(--border);
-    position: relative; overflow: hidden;
-  }
-  .result-img-wrap img {
-    width: 100%; height: 100%; object-fit: cover;
-    opacity: 0; transition: opacity .5s;
-  }
-  .result-img-wrap img.show { opacity: 1; }
-  .result-caption {
-    font-size: .65rem; letter-spacing: .1em; text-transform: uppercase;
-    color: var(--mist); text-align: center; margin-top: .4rem;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2rem 4rem;
+    border-bottom: 0.5px solid var(--border);
   }
 
-  /* ── MASK PREVIEW ── */
-  #mask { background: var(--ink-2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .mask-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; align-items: start; }
-  .mask-img-box {
-    aspect-ratio: 1; background: var(--ink-3); border: 1px solid var(--border);
-    position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  .logo {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 300;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
   }
-  .mask-img-box img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity:0; transition: opacity .5s; }
-  .mask-img-box img.show { opacity: 1; }
-  .mask-ph { font-size:.75rem; color:var(--mist); }
 
-  /* ── CONSULT ── */
-  #consult {}
-  .consult-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1px; background: var(--border); }
-  .consult-card { background: var(--ink-2); padding: 1.5rem; }
-  .consult-card-title {
-    font-size: .64rem; letter-spacing: .2em; text-transform: uppercase;
-    color: var(--gold); margin-bottom: .8rem;
+  .logo span {
+    font-style: italic;
+    font-weight: 400;
   }
-  .consult-card ul { list-style: none; }
-  .consult-card li {
-    font-size: .82rem; color: var(--cream); padding: .3rem 0;
-    border-bottom: 1px solid var(--border);
-    display: flex; justify-content: space-between; align-items: baseline;
-    gap: .5rem;
-  }
-  .consult-card li:last-child { border-bottom: none; }
-  .consult-card li span { color: var(--mist); font-size: .75rem; text-align: right; }
-  .consult-card .product-name { color: var(--cream); }
-  .consult-card .product-why { color: var(--mist); font-size: .73rem; margin-top: .1rem; }
 
-  /* ── STATUS BAR ── */
-  #status-bar {
-    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
-    background: var(--ink-2); border: 1px solid var(--border);
-    padding: .6rem 1.4rem; font-size: .75rem; color: var(--gold-lt);
-    letter-spacing: .06em; opacity: 0; transition: opacity .3s;
-    z-index: 200; pointer-events: none; white-space: nowrap;
+  .tagline {
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    color: var(--mist);
+    text-transform: uppercase;
   }
-  #status-bar.show { opacity: 1; }
+
+  nav {
+    display: flex;
+    gap: 2.5rem;
+    align-items: center;
+  }
+
+  nav a {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mist);
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+
+  nav a:hover { color: var(--gold); }
+
+  /* ── Main Layout ── */
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 4rem 4rem 6rem;
+  }
+
+  /* ── Hero text ── */
+  .hero {
+    text-align: center;
+    margin-bottom: 5rem;
+  }
+
+  .hero-eyebrow {
+    font-size: 0.6rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+    display: block;
+  }
+
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.8rem, 5vw, 4.5rem);
+    font-weight: 300;
+    line-height: 1.15;
+    color: var(--cream);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  .hero p {
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    color: var(--mist);
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.9;
+  }
+
+  /* ── Hidden admin panel ── */
+  .admin-panel {
+    display: none;
+    position: fixed;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    z-index: 999;
+    background: var(--charcoal);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    min-width: 340px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+
+  .admin-panel.open { display: block; }
+
+  .admin-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .admin-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    white-space: nowrap;
+  }
+
+  .admin-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 0.5px solid var(--border);
+    outline: none;
+    color: var(--cream);
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    font-weight: 300;
+    padding: 0.25rem 0;
+  }
+
+  .admin-input::placeholder { color: var(--mist); }
+
   .status-dot {
-    display: inline-block; width: 6px; height: 6px; background: var(--gold);
-    border-radius: 50%; margin-right: .5rem;
-    animation: pulse 1.2s ease-in-out infinite;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mist);
+    flex-shrink: 0;
+    transition: background 0.4s;
   }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .status-dot.connected { background: #7BC67E; box-shadow: 0 0 4px rgba(123,198,126,0.4); }
+  .status-dot.error { background: #E06B6B; }
 
-
-
-  /* ── FADE-IN ANIMATIONS ── */
-  .fade-up {
-    opacity: 0; transform: translateY(24px);
-    transition: opacity .7s ease, transform .7s ease;
+  /* ── Mode Selector ── */
+  .mode-selector {
+    display: flex;
+    gap: 0;
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 3rem;
+    width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
   }
-  .fade-up.visible { opacity: 1; transform: none; }
-  .fade-up:nth-child(2) { transition-delay: .1s; }
-  .fade-up:nth-child(3) { transition-delay: .2s; }
-  .fade-up:nth-child(4) { transition-delay: .3s; }
 
-  /* ── UTILITIES ── */
-  .txt-gold { color: var(--gold); }
-  .txt-mist { color: var(--mist); }
-  .mt1 { margin-top: 1rem; }
-  .mt2 { margin-top: 2rem; }
+  .mode-btn {
+    padding: 0.85rem 2.5rem;
+    background: transparent;
+    border: none;
+    color: var(--mist);
+    font-family: var(--font-body);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+  }
 
+  .mode-btn + .mode-btn {
+    border-left: 0.5px solid var(--border);
+  }
+
+  .mode-btn.active {
+    background: rgba(201,169,110,0.1);
+    color: var(--gold);
+  }
+
+  .mode-btn:hover:not(.active) {
+    background: rgba(255,255,255,0.03);
+    color: var(--cream);
+  }
+
+  /* ── Upload / Camera Area ── */
+  .capture-zone {
+    position: relative;
+  }
+
+  .panel {
+    display: none;
+  }
+  .panel.active { display: block; }
+
+  /* Upload panel */
+  .upload-area {
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 5rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.4s;
+    position: relative;
+    overflow: hidden;
+    background: rgba(255,255,255,0.015);
+  }
+
+  .upload-area::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 60% at 50% 50%, rgba(201,169,110,0.05), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  .upload-area:hover::before,
+  .upload-area.dragover::before { opacity: 1; }
+
+  .upload-area:hover,
+  .upload-area.dragover {
+    border-color: var(--border-strong);
+  }
+
+  .upload-icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 1.5rem;
+    border: 0.5px solid var(--border-strong);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+  }
+
+  .upload-area:hover .upload-icon {
+    border-color: var(--gold);
+    background: rgba(201,169,110,0.08);
+  }
+
+  .upload-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--gold);
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .upload-area h3 {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 300;
+    color: var(--cream);
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.05em;
+  }
+
+  .upload-area p {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: var(--mist);
+    margin-bottom: 2rem;
+  }
+
+  .upload-cta {
+    display: inline-block;
+    padding: 0.75rem 2.5rem;
+    border: 0.5px solid var(--gold);
+    color: var(--gold);
+    font-size: 0.6rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: transparent;
+    font-family: var(--font-body);
+  }
+
+  .upload-cta:hover {
+    background: rgba(201,169,110,0.1);
+  }
+
+  #file-input { display: none; }
+
+  /* Preview area */
+  .preview-container {
+    position: relative;
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--charcoal);
+  }
+
+  .preview-container img,
+  .preview-container video,
+  .preview-container canvas {
+    width: 100%;
+    max-height: 520px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .preview-overlay {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .overlay-btn {
+    padding: 0.5rem 1rem;
+    background: rgba(14,13,11,0.85);
+    border: 0.5px solid var(--border);
+    color: var(--mist);
+    font-family: var(--font-body);
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    backdrop-filter: blur(8px);
+  }
+
+  .overlay-btn:hover { color: var(--gold); border-color: var(--border-strong); }
+  .overlay-btn.danger:hover { color: #E06B6B; border-color: rgba(224,107,107,0.4); }
+
+  /* Camera panel */
+  .camera-container {
+    position: relative;
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--charcoal);
+  }
+
+  #camera-video {
+    width: 100%;
+    max-height: 520px;
+    object-fit: cover;
+    display: block;
+    transform: scaleX(-1);
+  }
+
+  #landmark-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    transform: scaleX(-1);
+  }
+
+  .camera-ui {
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    padding: 2rem;
+    background: linear-gradient(transparent, rgba(14,13,11,0.9));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .face-status {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .face-status.detected { color: var(--gold); }
+  .face-status.scanning { color: var(--mist); }
+
+  .capture-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .capture-btn::before {
+    content: '';
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--gold);
+    transition: all 0.3s;
+    opacity: 0.15;
+  }
+
+  .capture-btn:hover::before { opacity: 0.3; }
+
+  .metrics-pill {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--mist);
+  }
+
+  .metrics-pill span {
+    color: var(--gold);
+    font-weight: 400;
+  }
+
+  /* ── Metrics Display ── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 1.5rem;
+  }
+
+  .metric-cell {
+    background: var(--charcoal);
+    padding: 1.25rem 1rem;
+    text-align: center;
+    transition: background 0.3s;
+  }
+
+  .metric-cell.active { background: rgba(201,169,110,0.06); }
+
+  .metric-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mist);
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .metric-value {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 300;
+    color: var(--cream);
+    display: block;
+    min-height: 1.8rem;
+    transition: color 0.3s;
+  }
+
+  .metric-value.loaded { color: var(--gold); }
+
+  /* ── Analyse Button ── */
+  .analyse-section {
+    margin-top: 2.5rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+  }
+
+  .analyse-btn {
+    flex: 1;
+    padding: 1.1rem 2rem;
+    background: transparent;
+    border: 0.5px solid var(--gold);
+    color: var(--gold);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.4s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .analyse-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--gold);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .analyse-btn:hover::before { transform: scaleX(1); }
+
+  .analyse-btn span {
+    position: relative;
+    z-index: 1;
+    transition: color 0.4s;
+  }
+
+  .analyse-btn:hover span { color: var(--noir); }
+  .analyse-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .analyse-btn:disabled::before { display: none; }
+
+  .analyse-note {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--mist);
+    line-height: 1.7;
+    max-width: 220px;
+  }
+
+  /* ── Progress / Status ── */
+  .progress-bar-wrap {
+    height: 1px;
+    background: var(--border);
+    margin-top: 1.5rem;
+    overflow: hidden;
+    border-radius: 1px;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--gold);
+    width: 0%;
+    transition: width 0.6s ease;
+  }
+
+  .status-log {
+    margin-top: 1rem;
+    padding: 1rem 1.25rem;
+    background: rgba(255,255,255,0.02);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    display: none;
+  }
+
+  .status-log.visible { display: block; }
+
+  .log-line {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--mist);
+    line-height: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .log-line::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--gold);
+    flex-shrink: 0;
+    opacity: 0.5;
+  }
+
+  .log-line.active { color: var(--cream); }
+  .log-line.active::before { opacity: 1; background: var(--gold); }
+  .log-line.done::before { background: #7BC67E; opacity: 1; }
+  .log-line.error { color: #E06B6B; }
+  .log-line.error::before { background: #E06B6B; opacity: 1; }
+
+  /* ── Results ── */
+  .results-section {
+    margin-top: 5rem;
+    display: none;
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  .results-section.visible {
+    display: block;
+  }
+
+  .results-section.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .results-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-top: 0.5px solid var(--border);
+    padding-top: 3rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .results-eyebrow {
+    font-size: 0.55rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.6rem;
+    display: block;
+  }
+
+  .results-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 3vw, 2.8rem);
+    font-weight: 300;
+    color: var(--cream);
+    line-height: 1.15;
+  }
+
+  .results-title em { font-style: italic; color: var(--gold); }
+
+  .results-meta {
+    text-align: right;
+  }
+
+  .results-meta-shape {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 300;
+    color: var(--gold);
+    display: block;
+    margin-bottom: 0.2rem;
+  }
+
+  .results-meta-sub {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--mist);
+  }
+
+  /* Profile strip */
+  .profile-strip {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 3rem;
+    background: var(--border);
+  }
+
+  .profile-item {
+    padding: 1.1rem 0.75rem;
+    text-align: center;
+    background: var(--charcoal);
+  }
+
+  .profile-item-label {
+    font-size: 0.5rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mist);
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+
+  .profile-item-val {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 300;
+    color: var(--gold);
+  }
+
+  /* Styles grid — 4 cards */
+  .styles-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .style-card {
+    background: var(--charcoal);
+    padding: 2.25rem 2rem;
+    position: relative;
+    overflow: hidden;
+    cursor: default;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.5s ease, transform 0.5s ease, background 0.3s;
+  }
+
+  .style-card.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .style-card:hover { background: rgba(201,169,110,0.04); }
+
+  /* Gold top accent line */
+  .style-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--gold) 40%, transparent 100%);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .style-card:hover::before { opacity: 0.6; }
+
+  /* Large watermark number */
+  .style-card-bg-num {
+    position: absolute;
+    top: -0.5rem;
+    right: 1.25rem;
+    font-family: var(--font-display);
+    font-size: 7rem;
+    font-weight: 300;
+    color: rgba(201,169,110,0.05);
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .style-num {
+    font-size: 0.55rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .style-num::after {
+    content: '';
+    flex: 1;
+    height: 0.5px;
+    background: var(--border);
+    max-width: 40px;
+  }
+
+  .style-name {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 300;
+    color: var(--cream);
+    margin-bottom: 0.5rem;
+    line-height: 1.15;
+  }
+
+  .style-length-tag {
+    display: inline-block;
+    font-size: 0.55rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    border: 0.5px solid var(--border-strong);
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+    margin-bottom: 1.25rem;
+  }
+
+  .style-why {
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    color: var(--mist);
+    line-height: 1.85;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Maintenance row */
+  .style-maintenance {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 0.5px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  .maint-cell {
+    background: rgba(255,255,255,0.015);
+    padding: 0.65rem 0.5rem;
+    text-align: center;
+  }
+
+  .maint-label {
+    font-size: 0.48rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--mist);
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  .maint-val {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    color: var(--cream);
+    display: block;
+  }
+
+  /* Products */
+  .style-products {
+    margin-bottom: 1.5rem;
+  }
+
+  .products-label {
+    font-size: 0.5rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mist);
+    margin-bottom: 0.6rem;
+    display: block;
+  }
+
+  .product-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.45rem 0;
+    border-bottom: 0.5px solid rgba(201,169,110,0.08);
+  }
+
+  .product-row:last-child { border-bottom: none; }
+
+  .product-type {
+    font-size: 0.5rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    min-width: 64px;
+  }
+
+  .product-name {
+    font-size: 0.7rem;
+    color: var(--cream);
+    flex: 1;
+  }
+
+  /* SDXL prompt block */
+  .style-prompt-wrap {
+    margin-bottom: 1.5rem;
+  }
+
+  .style-prompt-label {
+    font-size: 0.5rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mist);
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .style-prompt {
+    font-size: 0.65rem;
+    letter-spacing: 0.03em;
+    color: rgba(201,169,110,0.7);
+    line-height: 1.7;
+    padding: 0.75rem 1rem;
+    background: rgba(201,169,110,0.04);
+    border-left: 1px solid rgba(201,169,110,0.3);
+    font-style: italic;
+  }
+
+  /* Generate button */
+  .style-generate-btn {
+    width: 100%;
+    padding: 0.9rem;
+    background: transparent;
+    border: 0.5px solid var(--border);
+    color: var(--mist);
+    font-family: var(--font-body);
+    font-size: 0.58rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.35s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .style-generate-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(201,169,110,0.08);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.35s ease;
+  }
+
+  .style-generate-btn:hover { border-color: var(--border-strong); color: var(--gold); }
+  .style-generate-btn:hover::before { transform: scaleX(1); }
+  .style-generate-btn span { position: relative; z-index: 1; }
+  .style-generate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .style-generate-btn:disabled::before { display: none; }
+
+  /* ── Divider ── */
+  .gold-divider {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin: 3rem 0;
+  }
+
+  .gold-divider::before,
+  .gold-divider::after {
+    content: '';
+    flex: 1;
+    height: 0.5px;
+    background: var(--border);
+  }
+
+  .gold-divider-icon {
+    color: var(--gold);
+    font-size: 0.6rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+
+  /* ── Footer ── */
+  footer {
+    position: relative;
+    z-index: 1;
+    border-top: 0.5px solid var(--border);
+    padding: 2rem 4rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  footer p {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    color: var(--mist);
+    text-transform: uppercase;
+  }
+
+  .footer-logo {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    color: var(--gold);
+    letter-spacing: 0.3em;
+    font-weight: 300;
+    text-transform: uppercase;
+  }
+
+  /* ── Spinner ── */
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 1px solid rgba(201,169,110,0.3);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.5rem;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 1rem 1.5rem;
+    background: var(--charcoal);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    color: var(--cream);
+    z-index: 100;
+    transform: translateY(120%);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 320px;
+  }
+
+  .toast.visible { transform: translateY(0); }
+  .toast.error { border-color: rgba(224,107,107,0.4); color: #E06B6B; }
+  .toast.success { border-color: rgba(123,198,126,0.4); color: #7BC67E; }
+
+  /* ── Responsive ── */
   @media (max-width: 768px) {
-    #hero { grid-template-columns: 1fr; padding-top: 7rem; }
-    .hero-left { padding-right: 0; margin-bottom: 2rem; }
-    .analyse-grid, .generate-layout, .mask-row { grid-template-columns: 1fr; }
+    header, main, footer { padding-left: 1.5rem; padding-right: 1.5rem; }
+    nav { display: none; }
+    .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    .styles-grid { grid-template-columns: 1fr; }
+    .analyse-section { flex-direction: column; align-items: stretch; }
+    .analyse-note { max-width: 100%; }
+    .profile-strip { flex-wrap: wrap; }
+    .profile-item { min-width: 50%; }
   }
+
+  /* ── Shimmer loading ── */
+  .shimmer {
+    background: linear-gradient(90deg, rgba(255,255,255,0.02) 25%, rgba(201,169,110,0.06) 50%, rgba(255,255,255,0.02) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer { to { background-position: -200% 0; } }
 </style>
 </head>
 <body>
 
-<!-- nav -->
-<nav id="nav">
-  <a class="nav-logo" href="#">ÉLUME</a>
-  <ul class="nav-links">
-    <li><a href="#analyse">Analyse</a></li>
-    <li><a href="#generate">Generate</a></li>
-    <li><a href="#mask">Preview</a></li>
-    <li><a href="#consult">Consult</a></li>
-  </ul>
-  <a class="nav-cta" href="#health" onclick="checkHealth();return false">Status &rsaquo;</a>
-</nav>
+<!-- ── Header ── -->
+<header>
+  <div>
+    <div class="logo" id="logo-trigger" style="cursor:default;">Él<span>ume</span></div>
+    <div class="tagline">AI Hair Atelier</div>
+  </div>
+  <nav>
+    <a href="#">Consultations</a>
+    <a href="#">Gallery</a>
+    <a href="#">Treatments</a>
+    <a href="#">Contact</a>
+  </nav>
+</header>
 
-<!-- status bar -->
-<div id="status-bar"></div>
+<!-- ── Main ── -->
+<main>
 
-<!-- ── HERO ── -->
-<div id="hero">
-  <div class="hero-left fade-up">
-    <p class="hero-eyebrow">AI Hair Studio · v3</p>
-    <h1 class="hero-title">
-      Your face.<br>
-      <em>Your perfect</em><br>
-      hairstyle.
-    </h1>
-    <p class="hero-sub">
-      GPU-powered face analysis, SDXL inpainting and Groq Vision recommend and render styles tuned to your exact proportions.
-    </p>
-    <div class="hero-btns">
-      <a class="btn-primary" href="#analyse">Begin Analysis &rarr;</a>
-      <a class="btn-ghost" href="#generate">Try Generator</a>
+  <!-- Hero -->
+  <div class="hero">
+    <span class="hero-eyebrow">Precision · Beauty · Intelligence</span>
+    <h1>Discover Your<br><em>Signature Style</em></h1>
+    <p>Our AI analyses your facial geometry and recommends hairstyles crafted precisely for your features.</p>
+  </div>
+
+  <!-- Mode selector -->
+  <div class="mode-selector">
+    <button class="mode-btn active" onclick="switchMode('upload')" id="btn-upload">Upload Photo</button>
+    <button class="mode-btn" onclick="switchMode('camera')" id="btn-camera">Live Scan</button>
+  </div>
+
+  <!-- ── Upload Panel ── -->
+  <div class="panel active" id="panel-upload">
+
+    <div id="upload-area" class="upload-area" onclick="document.getElementById('file-input').click()" ondragover="handleDrag(event,true)" ondragleave="handleDrag(event,false)" ondrop="handleDrop(event)">
+      <div class="upload-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <h3>Place your portrait here</h3>
+      <p>Drag & drop or browse — JPG, PNG, HEIF supported</p>
+      <button class="upload-cta" type="button">Select Image</button>
+    </div>
+    <input type="file" id="file-input" accept="image/*" onchange="handleFileSelect(event)">
+
+    <div id="upload-preview" style="display:none;">
+      <div class="preview-container">
+        <img id="preview-img" src="" alt="Preview">
+        <div class="preview-overlay">
+          <button class="overlay-btn danger" onclick="clearUpload()">Remove</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Camera Panel ── -->
+  <div class="panel" id="panel-camera">
+    <div class="camera-container">
+      <video id="camera-video" autoplay muted playsinline></video>
+      <canvas id="landmark-canvas"></canvas>
+      <div class="camera-ui">
+        <div>
+          <div class="face-status scanning" id="face-status">Scanning for face…</div>
+        </div>
+        <button class="capture-btn" onclick="captureFromCamera()" title="Capture"></button>
+        <div class="metrics-pill" id="live-ratio">Ratio: <span>—</span></div>
+      </div>
     </div>
   </div>
-  <div class="hero-visual fade-up">
-    <div class="corner-mark tl"></div>
-    <div class="corner-mark tr"></div>
-    <div class="corner-mark bl"></div>
-    <div class="corner-mark br"></div>
-    <img id="hero-preview" alt="uploaded photo">
-    <label class="drop-zone" for="hero-file">
-      <input type="file" id="hero-file" accept="image/*" onchange="previewHero(this)">
-      <div class="upload-idle" id="hero-idle">
-        <div class="upload-icon">
-          <svg viewBox="0 0 24 24"><path d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M16 10l-4-4m0 0L8 10m4-4v12"/></svg>
-        </div>
-        <p>Upload a portrait to begin</p>
-        <span>JPG · PNG · HEIC</span>
+
+  <!-- ── Face Metrics ── -->
+  <div class="metrics-grid" id="metrics-grid">
+    <div class="metric-cell" id="mc-shape">
+      <span class="metric-label">Face Shape</span>
+      <span class="metric-value" id="mv-shape">—</span>
+    </div>
+    <div class="metric-cell" id="mc-ratio">
+      <span class="metric-label">Length Ratio</span>
+      <span class="metric-value" id="mv-ratio">—</span>
+    </div>
+    <div class="metric-cell" id="mc-jaw">
+      <span class="metric-label">Jaw Width</span>
+      <span class="metric-value" id="mv-jaw">—</span>
+    </div>
+    <div class="metric-cell" id="mc-forehead">
+      <span class="metric-label">Forehead</span>
+      <span class="metric-value" id="mv-forehead">—</span>
+    </div>
+  </div>
+
+  <!-- ── Analyse ── -->
+  <div class="analyse-section">
+    <button class="analyse-btn" id="analyse-btn" onclick="runAnalysis()" disabled>
+      <span>Analyse My Features</span>
+    </button>
+    <p class="analyse-note">Our AI will study your facial proportions and curate hairstyles tailored exclusively to you.</p>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="progress-fill"></div>
+  </div>
+
+  <div class="status-log" id="status-log">
+    <div class="log-line" id="log-mediapipe">Processing facial geometry</div>
+    <div class="log-line" id="log-sending">Sending to ÉLUME intelligence</div>
+    <div class="log-line" id="log-groq">Consulting style engine</div>
+    <div class="log-line" id="log-results">Preparing recommendations</div>
+  </div>
+
+  <!-- ── Results ── -->
+  <div class="results-section" id="results-section">
+    <div class="results-header">
+      <div>
+        <span class="results-eyebrow">Your Personal Consultation</span>
+        <div class="results-title">Curated for Your<br><em>Geometry</em></div>
       </div>
-    </label>
+      <div class="results-meta">
+        <span class="results-meta-shape" id="result-shape-label">—</span>
+        <span class="results-meta-sub">Face Shape</span>
+      </div>
+    </div>
+
+    <div class="profile-strip" id="profile-strip"></div>
+
+    <div class="styles-grid" id="styles-grid"></div>
+  </div>
+
+</main>
+
+<!-- Hidden admin panel — triple-click logo to open -->
+<div class="admin-panel" id="admin-panel">
+  <div class="admin-row">
+    <span class="admin-label">API</span>
+    <input class="admin-input" type="text" id="backend-url" value="https://your-ngrok-domain.ngrok-free.app" placeholder="https://…ngrok-free.app" onchange="checkHealth()">
+    <div class="status-dot" id="status-dot"></div>
   </div>
 </div>
 
-<!-- ── ANALYSE ── -->
-<section id="analyse">
-  <div class="wrap">
-    <p class="section-label">01 · Face Analysis</p>
-    <div class="analyse-grid">
-      <div>
-        <h2 class="section-title">Precision<br><em>face profiling</em></h2>
-        <p class="txt-mist" style="font-size:.85rem;max-width:38ch;margin-bottom:1.5rem">
-          Enter your MediaPipe measurements. The engine maps your exact ratios to style rules before Groq Vision renders personalised recommendations.
-        </p>
-
-        <div class="photo-upload-row" onclick="document.getElementById('an-photo').click()">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--gold)"><rect x="3" y="3" width="18" height="18" rx="1"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-          <span>Optional: upload photo for Vision analysis</span>
-          <span class="photo-name" id="an-photo-name"></span>
-          <input type="file" id="an-photo" accept="image/*" onchange="setPhotoName(this)">
-        </div>
-
-        <div class="metric-grid">
-          <div class="metric-box">
-            <label>Face shape</label>
-            <select id="an-shape">
-              <option value="oval">Oval</option>
-              <option value="round">Round</option>
-              <option value="square">Square</option>
-              <option value="heart">Heart</option>
-              <option value="diamond">Diamond</option>
-              <option value="oblong">Oblong</option>
-              <option value="rectangle">Rectangle</option>
-            </select>
-          </div>
-          <div class="metric-box">
-            <label>Elongation ratio</label>
-            <input id="an-ratio" type="number" step="0.01" value="1.55" placeholder="1.55">
-          </div>
-          <div class="metric-box">
-            <label>Jaw width</label>
-            <input id="an-jaw" type="number" step="0.01" value="0.88" placeholder="0.88">
-          </div>
-          <div class="metric-box">
-            <label>Forehead width</label>
-            <input id="an-fore" type="number" step="0.01" value="0.95" placeholder="0.95">
-          </div>
-          <div class="metric-box">
-            <label>Cheek width</label>
-            <input id="an-cheek" type="number" step="0.01" value="1.0" placeholder="1.0">
-          </div>
-          <div class="metric-box">
-            <label>Face length</label>
-            <input id="an-len" type="number" step="0.01" value="1.6" placeholder="1.6">
-          </div>
-        </div>
-        <div class="metric-box" style="margin-top:.8rem">
-          <label>Salon signature styles (optional)</label>
-          <input id="an-salon" type="text" placeholder="e.g. The Parisian Bob, Cloud Perm…">
-        </div>
-        <button class="analyse-btn" id="an-btn" onclick="runAnalyse()">
-          <span>Analyse</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </button>
-      </div>
-
-      <div>
-        <div id="style-cards-wrap">
-          <p class="txt-mist" style="font-size:.82rem;text-align:center;padding:3rem 0">
-            Style recommendations will appear here after analysis.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── GENERATE ── -->
-<section id="generate">
-  <div class="wrap">
-    <p class="section-label">02 · SDXL Generation</p>
-    <h2 class="section-title" style="margin-bottom:2.5rem">Render your<br><em>new look</em></h2>
-    <div class="generate-layout">
-      <div>
-        <label class="gen-photo-zone" for="gen-file" id="gen-upload-box">
-          <img id="gen-preview" alt="photo">
-          <div class="ph">Upload portrait</div>
-          <input type="file" id="gen-file" accept="image/*" onchange="previewGen(this)">
-          <div class="corner-mark tl"></div>
-          <div class="corner-mark tr"></div>
-          <div class="corner-mark bl"></div>
-          <div class="corner-mark br"></div>
-        </label>
-        <div class="result-panel" id="gen-result-panel" style="display:none">
-          <div>
-            <div class="result-img-wrap">
-              <img id="gen-result-img" alt="generated">
-            </div>
-            <p class="result-caption">Generated</p>
-          </div>
-          <div>
-            <div class="result-img-wrap">
-              <img id="gen-mask-img" alt="mask">
-            </div>
-            <p class="result-caption">Hair mask</p>
-          </div>
-        </div>
-      </div>
-      <div class="gen-controls">
-        <div class="gen-field">
-          <div class="gen-label">Style prompt</div>
-          <textarea class="gen-input" id="gen-prompt" rows="4"
-            placeholder="e.g. shoulder-length copper balayage with soft curtain bangs, glossy and natural, professional salon quality"></textarea>
-        </div>
-        <div class="gen-row">
-          <div class="gen-field">
-            <div class="gen-label">Steps <span id="steps-val">30</span></div>
-            <input type="range" min="10" max="50" value="30" step="1" id="gen-steps"
-              oninput="document.getElementById('steps-val').textContent=this.value">
-          </div>
-          <div class="gen-field">
-            <div class="gen-label">Guidance <span id="guidance-val">8.0</span></div>
-            <input type="range" min="1" max="15" value="8" step="0.5" id="gen-guidance"
-              oninput="document.getElementById('guidance-val').textContent=parseFloat(this.value).toFixed(1)">
-          </div>
-          <div class="gen-field">
-            <div class="gen-label">Strength <span id="strength-val">0.95</span></div>
-            <input type="range" min="0.5" max="1.0" value="0.95" step="0.05" id="gen-strength"
-              oninput="document.getElementById('strength-val').textContent=parseFloat(this.value).toFixed(2)">
-          </div>
-        </div>
-        <div class="gen-field">
-          <div class="gen-label">Seed</div>
-          <input class="gen-input" type="number" id="gen-seed" value="42">
-        </div>
-        <div class="gen-field">
-          <div class="gen-label">Reference image (optional)</div>
-          <div class="photo-upload-row" onclick="document.getElementById('gen-ref').click()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--gold)"><path d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M16 10l-4-4-4 4m4-4v12"/></svg>
-            <span>Upload reference photo</span>
-            <span class="photo-name" id="gen-ref-name"></span>
-            <input type="file" id="gen-ref" accept="image/*" onchange="document.getElementById('gen-ref-name').textContent=this.files[0]?.name||''">
-          </div>
-        </div>
-        <button class="analyse-btn" id="gen-btn" onclick="runGenerate()">
-          <span>Generate</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </button>
-        <p id="gen-timer" style="font-size:.72rem;color:var(--mist);text-align:center;margin-top:.6rem;min-height:1rem"></p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── MASK PREVIEW ── -->
-<section id="mask">
-  <div class="wrap">
-    <p class="section-label">03 · Mask Preview</p>
-    <h2 class="section-title" style="margin-bottom:1.5rem">Instant <em>hair segmentation</em></h2>
-    <p class="txt-mist" style="font-size:.85rem;margin-bottom:2rem;max-width:50ch">
-      Fast BiSeNet mask check — no SDXL required. Upload a photo to verify segmentation quality before a full generation.
-    </p>
-    <div style="margin-bottom:1.5rem">
-      <div class="photo-upload-row" style="max-width:380px" onclick="document.getElementById('mask-file').click()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--gold)"><path d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M16 10l-4-4-4 4m4-4v12"/></svg>
-        <span>Upload portrait</span>
-        <span class="photo-name" id="mask-file-name"></span>
-        <input type="file" id="mask-file" accept="image/*" onchange="runMaskPreview(this)">
-      </div>
-    </div>
-    <div class="mask-row">
-      <div>
-        <div class="mask-img-box" id="mask-orig-box">
-          <img id="mask-orig" alt="original"><div class="mask-ph">Original</div>
-        </div>
-        <p class="result-caption" style="margin-top:.4rem">Original</p>
-      </div>
-      <div>
-        <div class="mask-img-box">
-          <img id="mask-mask-img" alt="mask"><div class="mask-ph">Mask</div>
-        </div>
-        <p class="result-caption" style="margin-top:.4rem">Hair mask</p>
-      </div>
-      <div>
-        <div class="mask-img-box">
-          <img id="mask-overlay-img" alt="overlay"><div class="mask-ph">Overlay</div>
-        </div>
-        <p class="result-caption" style="margin-top:.4rem">Overlay</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── CONSULT ── -->
-<section id="consult">
-  <div class="wrap">
-    <p class="section-label">04 · Maintenance Consult</p>
-    <h2 class="section-title" style="margin-bottom:1.5rem">Your <em>care routine</em></h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:start;margin-bottom:2rem">
-      <div>
-        <p class="txt-mist" style="font-size:.85rem;margin-bottom:1.5rem;max-width:40ch">
-          Get a bespoke maintenance plan — washing schedule, styling steps, product picks — for any style.
-        </p>
-        <div class="metric-grid">
-          <div class="metric-box">
-            <label>Style name</label>
-            <input id="con-style" type="text" placeholder="e.g. Textured Lob">
-          </div>
-          <div class="metric-box">
-            <label>Face shape</label>
-            <select id="con-shape">
-              <option value="oval">Oval</option>
-              <option value="round">Round</option>
-              <option value="square">Square</option>
-              <option value="heart">Heart</option>
-              <option value="diamond">Diamond</option>
-              <option value="oblong">Oblong</option>
-            </select>
-          </div>
-          <div class="metric-box">
-            <label>Jaw width</label>
-            <input id="con-jaw" type="number" step="0.01" value="0.88">
-          </div>
-          <div class="metric-box">
-            <label>Forehead width</label>
-            <input id="con-fore" type="number" step="0.01" value="0.95">
-          </div>
-        </div>
-        <button class="analyse-btn mt1" id="con-btn" onclick="runConsult()">
-          <span>Get Plan</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </button>
-      </div>
-      <div id="consult-result">
-        <p class="txt-mist" style="font-size:.82rem;text-align:center;padding:3rem 0">Consult results will appear here.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- footer -->
-<footer style="border-top:1px solid var(--border);padding:2rem;text-align:center;position:relative;z-index:1">
-  <p style="font-size:.7rem;letter-spacing:.12em;color:var(--mist)">
-    ÉLUME &nbsp;&middot;&nbsp; &copy; 2024&ndash;2026 Elmo Richard Pereira &nbsp;&middot;&nbsp; Operated by Ace Dynamics Trading under licence
-  </p>
+<!-- Footer -->
+<footer>
+  <p>© ÉLUME Atelier · Powered by AI</p>
+  <div class="footer-logo">Élume</div>
+  <p>Confidential · Secure</p>
 </footer>
 
-<script>
-// ── CONFIG ────────────────────────────────────────────────────────────────
-const API = 'https://data-silicon-studio.ngrok-free.dev';
+<!-- Toast -->
+<div class="toast" id="toast"></div>
 
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+// Set your ngrok URL here — clients never see this
+const BACKEND_URL = 'https://your-ngrok-domain.ngrok-free.app';
+
+function getBackendUrl() {
+  const input = document.getElementById('backend-url');
+  return (input ? input.value : BACKEND_URL).replace(/\/$/, '');
+}
+
+// ── Hidden admin panel — triple-click logo ─────────────────────────────────
+let _logoClicks = 0, _logoTimer = null;
+document.getElementById('logo-trigger').addEventListener('click', () => {
+  _logoClicks++;
+  clearTimeout(_logoTimer);
+  _logoTimer = setTimeout(() => { _logoClicks = 0; }, 600);
+  if (_logoClicks >= 3) {
+    _logoClicks = 0;
+    const panel = document.getElementById('admin-panel');
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) checkHealth();
+  }
+});
+const state = {
+  mode: 'upload',
+  imageFile: null,
+  imageBlob: null,
+  metrics: null,
+  cameraRunning: false,
+  faceMeshReady: false,
+  lastFaceLandmarks: null,
+  faceMesh: null,
+  camera: null,
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function getBackendUrl() {
+  return document.getElementById('backend-url').value.replace(/\/$/, '');
+}
+
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast visible ' + type;
+  setTimeout(() => el.className = 'toast', 3500);
+}
+
+function setProgress(pct) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+function setLog(id, state_) {
+  const el = document.getElementById(id);
+  el.className = 'log-line ' + state_;
+}
+
+function setMetric(id, val, active = true) {
+  const mv = document.getElementById('mv-' + id);
+  const mc = document.getElementById('mc-' + id);
+  mv.textContent = val;
+  mv.className = 'metric-value' + (active ? ' loaded' : '');
+  mc.className = 'metric-cell' + (active ? ' active' : '');
+}
+
+document.addEventListener('click', e => {
+  const panel = document.getElementById('admin-panel');
+  if (panel.classList.contains('open') && !panel.contains(e.target) && e.target.id !== 'logo-trigger') {
+    panel.classList.remove('open');
+  }
+});
+
+// ── Backend health check ───────────────────────────────────────────────────
 async function checkHealth() {
-  showStatus('Checking backend…', true);
+  const dot = document.getElementById('status-dot');
   try {
-    const res = await fetch(API + '/health');
-    const d = await res.json();
-    showStatus('Backend online · GPU ' + (d.gpu ? '✓' : '✗') + ' · VRAM ' + (d.vram_used_gb||0) + '/' + (d.vram_total_gb||0) + ' GB');
-  } catch(e) {
-    showStatus('Backend unreachable — start Cell 8 in Kaggle');
+    const r = await fetch(getBackendUrl() + '/health', { signal: AbortSignal.timeout(5000) });
+    dot.className = r.ok ? 'status-dot connected' : 'status-dot error';
+  } catch {
+    dot.className = 'status-dot error';
   }
 }
 
-// ── STATUS ────────────────────────────────────────────────────────────────
-let _statusTimer;
-function showStatus(msg, loading=false) {
-  const el = document.getElementById('status-bar');
-  el.innerHTML = (loading ? '<span class="status-dot"></span>' : '') + msg;
-  el.classList.add('show');
-  clearTimeout(_statusTimer);
-  if (!loading) _statusTimer = setTimeout(() => el.classList.remove('show'), 3500);
+setTimeout(checkHealth, 1000);
+
+// ── Mode switch ────────────────────────────────────────────────────────────
+function switchMode(mode) {
+  state.mode = mode;
+  document.getElementById('btn-upload').className = 'mode-btn' + (mode === 'upload' ? ' active' : '');
+  document.getElementById('btn-camera').className = 'mode-btn' + (mode === 'camera' ? ' active' : '');
+  document.getElementById('panel-upload').className = 'panel' + (mode === 'upload' ? ' active' : '');
+  document.getElementById('panel-camera').className = 'panel' + (mode === 'camera' ? ' active' : '');
+  if (mode === 'camera') startCamera();
+  else stopCamera();
 }
 
-// ── NAV SCROLL ────────────────────────────────────────────────────────────
-window.addEventListener('scroll', () => {
-  document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 40);
-});
+// ── Upload handling ────────────────────────────────────────────────────────
+function handleDrag(e, over) {
+  e.preventDefault();
+  document.getElementById('upload-area').classList.toggle('dragover', over);
+}
 
-// ── FADE-IN OBSERVER ──────────────────────────────────────────────────────
-const obs = new IntersectionObserver(entries => {
-  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-}, { threshold: 0.15 });
-document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
+function handleDrop(e) {
+  e.preventDefault();
+  handleDrag(e, false);
+  const file = e.dataTransfer.files[0];
+  if (file) loadImageFile(file);
+}
 
-// ── HERO PREVIEW ──────────────────────────────────────────────────────────
-function previewHero(input) {
-  if (!input.files[0]) return;
-  const img = document.getElementById('hero-preview');
-  img.src = URL.createObjectURL(input.files[0]);
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) loadImageFile(file);
+}
+
+function loadImageFile(file) {
+  state.imageFile = file;
+  state.imageBlob = file;
+  const url = URL.createObjectURL(file);
+  document.getElementById('upload-area').style.display = 'none';
+  document.getElementById('upload-preview').style.display = 'block';
+  document.getElementById('preview-img').src = url;
+  runMediaPipeOnImage(url);
+}
+
+function clearUpload() {
+  state.imageFile = null;
+  state.imageBlob = null;
+  state.metrics = null;
+  document.getElementById('upload-area').style.display = '';
+  document.getElementById('upload-preview').style.display = 'none';
+  document.getElementById('preview-img').src = '';
+  ['shape','ratio','jaw','forehead'].forEach(k => setMetric(k, '—', false));
+  document.getElementById('analyse-btn').disabled = true;
+  document.getElementById('results-section').className = 'results-section';
+}
+
+// ── MediaPipe on uploaded image ────────────────────────────────────────────
+function runMediaPipeOnImage(url) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
   img.onload = () => {
-    img.classList.add('show');
-    document.getElementById('hero-idle').style.opacity = '0';
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+
+    const fm = new FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+    });
+    fm.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    fm.onResults(results => {
+      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        processLandmarks(results.multiFaceLandmarks[0], img.width, img.height);
+      } else {
+        toast('No face detected — please use a clear front-facing portrait', 'error');
+      }
+    });
+    fm.send({ image: canvas }).then(() => fm.close());
+  };
+  img.src = url;
+}
+
+// ── Camera / Live scan ─────────────────────────────────────────────────────
+async function startCamera() {
+  if (state.cameraRunning) return;
+  const video = document.getElementById('camera-video');
+  const overlayCanvas = document.getElementById('landmark-canvas');
+
+  state.faceMesh = new FaceMesh({
+    locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+  });
+
+  state.faceMesh.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
+  state.faceMesh.onResults(results => {
+    const ctx = overlayCanvas.getContext('2d');
+    overlayCanvas.width = video.videoWidth;
+    overlayCanvas.height = video.videoHeight;
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+      const lm = results.multiFaceLandmarks[0];
+      state.lastFaceLandmarks = lm;
+
+      // Draw subtle landmark dots
+      ctx.fillStyle = 'rgba(201,169,110,0.5)';
+      for (const p of lm) {
+        ctx.beginPath();
+        ctx.arc(p.x * overlayCanvas.width, p.y * overlayCanvas.height, 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw key contour lines
+      drawContour(ctx, lm, [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10], overlayCanvas, 'rgba(201,169,110,0.3)');
+
+      const metrics = computeMetrics(lm, video.videoWidth, video.videoHeight);
+      document.getElementById('live-ratio').innerHTML = `Ratio: <span>${metrics.ratio}</span>`;
+      document.getElementById('face-status').className = 'face-status detected';
+      document.getElementById('face-status').textContent = 'Face detected';
+    } else {
+      state.lastFaceLandmarks = null;
+      document.getElementById('face-status').className = 'face-status scanning';
+      document.getElementById('face-status').textContent = 'Scanning for face…';
+    }
+  });
+
+  state.camera = new Camera(video, {
+    onFrame: async () => {
+      if (state.faceMesh) await state.faceMesh.send({ image: video });
+    },
+    width: 1280,
+    height: 720,
+  });
+
+  state.camera.start();
+  state.cameraRunning = true;
+}
+
+function stopCamera() {
+  if (state.camera) { state.camera.stop(); state.camera = null; }
+  if (state.faceMesh) { state.faceMesh.close(); state.faceMesh = null; }
+  state.cameraRunning = false;
+  state.lastFaceLandmarks = null;
+}
+
+function drawContour(ctx, lm, indices, canvas, color) {
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  indices.forEach((i, idx) => {
+    const x = lm[i].x * canvas.width;
+    const y = lm[i].y * canvas.height;
+    idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function captureFromCamera() {
+  if (!state.lastFaceLandmarks) {
+    toast('No face in frame — please position your face in the camera', 'error');
+    return;
+  }
+  const video = document.getElementById('camera-video');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0);
+
+  processLandmarks(state.lastFaceLandmarks, video.videoWidth, video.videoHeight);
+
+  canvas.toBlob(blob => {
+    state.imageBlob = blob;
+    switchMode('upload');
+    const url = URL.createObjectURL(blob);
+    document.getElementById('upload-area').style.display = 'none';
+    document.getElementById('upload-preview').style.display = 'block';
+    document.getElementById('preview-img').src = url;
+    toast('Photo captured ✓', 'success');
+  }, 'image/jpeg', 0.92);
+}
+
+// ── Landmark maths ─────────────────────────────────────────────────────────
+function dist(a, b, w, h) {
+  return Math.sqrt(Math.pow((a.x - b.x) * w, 2) + Math.pow((a.y - b.y) * h, 2));
+}
+
+function computeMetrics(lm, w, h) {
+  // Key landmark indices for FaceMesh 468-point model
+  const faceTop    = lm[10];   // top of forehead
+  const faceBtm    = lm[152];  // chin
+  const jawL       = lm[234];  // jaw left
+  const jawR       = lm[454];  // jaw right
+  const foreL      = lm[21];   // forehead left
+  const foreR      = lm[251];  // forehead right
+  const cheekL     = lm[234];  // cheekbone left
+  const cheekR     = lm[454];  // cheekbone right
+
+  const faceHeight = dist(faceTop, faceBtm, w, h);
+  const jawWidth   = dist(jawL, jawR, w, h);
+  const foreWidth  = dist(foreL, foreR, w, h);
+  const cheekWidth = dist(cheekL, cheekR, w, h);
+  const ratio      = faceHeight / jawWidth;
+
+  return {
+    faceHeight: Math.round(faceHeight),
+    jawWidth:   Math.round(jawWidth),
+    foreWidth:  Math.round(foreWidth),
+    cheekWidth: Math.round(cheekWidth),
+    ratio:      ratio.toFixed(2),
+    ratioRaw:   ratio,
   };
 }
 
-// ── ANALYSE ───────────────────────────────────────────────────────────────
-async function runAnalyse() {
-  
-  const btn = document.getElementById('an-btn');
-  btn.classList.add('loading'); btn.querySelector('span').textContent = 'Analysing…';
-  showStatus('Running face analysis…', true);
+function classifyShape(m) {
+  const r = m.ratioRaw;
+  const jf = m.jawWidth / m.foreWidth;
+  const cf = m.cheekWidth / m.foreWidth;
 
-  const fd = new FormData();
-  fd.append('face_shape',     document.getElementById('an-shape').value);
-  fd.append('face_length',    document.getElementById('an-len').value);
-  fd.append('jaw_width',      document.getElementById('an-jaw').value);
-  fd.append('forehead_width', document.getElementById('an-fore').value);
-  fd.append('cheek_width',    document.getElementById('an-cheek').value);
-  fd.append('ratio',          document.getElementById('an-ratio').value);
-  fd.append('count',          '4');
-  const salon = document.getElementById('an-salon').value.trim();
-  if (salon) fd.append('salon_styles', salon);
-  const photo = document.getElementById('an-photo').files[0];
-  if (photo) {
-    const b64 = await toB64(photo);
-    fd.append('photo_b64', b64.split(',')[1]);
-  }
+  if (r > 1.75) return 'Oblong';
+  if (r < 1.15) return 'Round';
+  if (jf > 1.15 && r < 1.45) return 'Square';
+  if (jf < 0.85 && r >= 1.35) return 'Heart';
+  if (cf > 1.1 && jf > 0.95 && r >= 1.3 && r <= 1.6) return 'Diamond';
+  if (r >= 1.35 && r <= 1.65 && Math.abs(jf - 1) < 0.12) return 'Oval';
+  if (r >= 1.45 && r <= 1.8) return 'Oblong';
+  return 'Oval';
+}
+
+function processLandmarks(lm, w, h) {
+  const m = computeMetrics(lm, w, h);
+  const shape = classifyShape(m);
+  m.shape = shape;
+
+  state.metrics = {
+    face_shape:      shape,
+    face_length:     String(m.faceHeight),
+    jaw_width:       (m.jawWidth / m.faceHeight).toFixed(3),
+    forehead_width:  (m.foreWidth / m.faceHeight).toFixed(3),
+    cheek_width:     (m.cheekWidth / m.faceHeight).toFixed(3),
+    ratio:           m.ratio,
+  };
+
+  setMetric('shape',    shape);
+  setMetric('ratio',    m.ratio);
+  setMetric('jaw',      state.metrics.jaw_width);
+  setMetric('forehead', state.metrics.forehead_width);
+
+  document.getElementById('analyse-btn').disabled = false;
+  toast('Facial geometry measured', 'success');
+}
+
+// ── Run Analysis ───────────────────────────────────────────────────────────
+async function runAnalysis() {
+  if (!state.metrics) { toast('No face measurements available', 'error'); return; }
+  if (!state.imageBlob) { toast('Please provide a photo first', 'error'); return; }
+
+  const btn = document.getElementById('analyse-btn');
+  btn.disabled = true;
+  btn.querySelector('span').innerHTML = '<span class="spinner"></span>Analysing…';
+
+  const logEl = document.getElementById('status-log');
+  logEl.className = 'status-log visible';
+  setProgress(10);
+  setLog('log-mediapipe', 'active');
 
   try {
-    const res = await fetch(API + '/analyse', { method:'POST', body: fd });
-    if (!res.ok) throw new Error(await res.text());
+    // Step 1 — prepare data
+    await sleep(400);
+    setLog('log-mediapipe', 'done');
+    setProgress(25);
+    setLog('log-sending', 'active');
+
+    // Convert image to base64 for /analyse (photo_b64 field)
+    const b64 = await blobToBase64(state.imageBlob);
+    const b64Data = b64.split(',')[1];
+
+    const url = getBackendUrl() + '/analyse';
+    const fd = new FormData();
+    fd.append('face_shape',     state.metrics.face_shape);
+    fd.append('face_length',    state.metrics.face_length);
+    fd.append('jaw_width',      state.metrics.jaw_width);
+    fd.append('forehead_width', state.metrics.forehead_width);
+    fd.append('cheek_width',    state.metrics.cheek_width);
+    fd.append('ratio',          state.metrics.ratio);
+    fd.append('count',          '4');
+    fd.append('photo_b64',      b64Data);
+
+    setProgress(40);
+
+    const res = await fetch(url, { method: 'POST', body: fd });
+
+    setLog('log-sending', 'done');
+    setProgress(65);
+    setLog('log-groq', 'active');
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || 'Backend error');
+    }
+
+    await sleep(300);
+    setLog('log-groq', 'done');
+    setProgress(85);
+    setLog('log-results', 'active');
+
     const data = await res.json();
-    renderStyleCards(data.styles, data.elapsed_s);
-    showStatus('Analysis complete · ' + data.elapsed_s + 's · ' + data.styles.length + ' styles');
-  } catch(e) {
-    showStatus('Error: ' + e.message);
+    await sleep(300);
+
+    setLog('log-results', 'done');
+    setProgress(100);
+
+    renderResults(data);
+
+  } catch (err) {
+    setLog('log-sending', 'error');
+    setLog('log-groq', 'error');
+    toast('Error: ' + err.message, 'error');
+    console.error(err);
+    setProgress(0);
+  } finally {
+    btn.disabled = false;
+    btn.querySelector('span').textContent = 'Analyse My Features';
   }
-  btn.classList.remove('loading'); btn.querySelector('span').textContent = 'Analyse';
 }
 
-function renderStyleCards(styles, elapsed) {
-  const wrap = document.getElementById('style-cards-wrap');
-  const html = `
-    <p style="font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--mist);margin-bottom:1rem">
-      ${styles.length} recommendations &nbsp;&middot;&nbsp; ${elapsed}s
-    </p>
-    <div class="style-cards">
-      ${styles.map((s, i) => `
-        <div class="style-card" onclick="toggleCard(this, ${i})" data-idx="${i}">
-          <div class="card-num">0${i+1}</div>
-          <div class="card-body">
-            <div class="card-name">${s.name || 'Style ' + (i+1)}</div>
-            <div class="card-why">${s.why_this_face || ''}</div>
-            <div class="card-apply" style="margin-top:.5rem" onclick="applyPrompt(event,'${(s.sdxl_prompt||'').replace(/'/g,"\'")}')">
-              Apply to Generator &rsaquo;
-            </div>
-          </div>
-          <div style="font-size:.65rem;color:var(--border)">&#9654;</div>
-          <div class="card-expand">
-            <div class="card-expand-inner">
-              <div>
-                <p class="mini-label">SDXL Prompt</p>
-                <p class="mini-val">${s.sdxl_prompt || '–'}</p>
-              </div>
-              <div>
-                <p class="mini-label">Maintenance</p>
-                ${s.maintenance ? `
-                  <p class="mini-val">Trim: every ${s.maintenance.trim_weeks||'?'} weeks</p>
-                  <p class="mini-val">Wash: every ${s.maintenance.wash_days||'?'} days</p>
-                  ${(s.maintenance.steps||[]).map(st=>`<p class="mini-val" style="margin-top:.3rem">· ${st}</p>`).join('')}
-                ` : '<p class="mini-val">–</p>'}
-              </div>
-            </div>
-          </div>
-        </div>
-      `).join('')}
-    </div>`;
-  wrap.innerHTML = html;
-}
-
-function toggleCard(el) {
-  document.querySelectorAll('.style-card').forEach(c => { if(c!==el) c.classList.remove('active'); });
-  el.classList.toggle('active');
-}
-
-function applyPrompt(e, prompt) {
-  e.stopPropagation();
-  document.getElementById('gen-prompt').value = prompt;
-  document.getElementById('generate').scrollIntoView({behavior:'smooth'});
-  showStatus('Prompt applied to Generator');
-}
-
-// ── GENERATE ──────────────────────────────────────────────────────────────
-function previewGen(input) {
-  if (!input.files[0]) return;
-  const img = document.getElementById('gen-preview');
-  img.src = URL.createObjectURL(input.files[0]);
-  img.classList.add('show');
-}
-
-async function runGenerate() {
-  
-  const file = document.getElementById('gen-file').files[0];
-  if (!file) { showStatus('Upload a photo first'); return; }
-  const prompt = document.getElementById('gen-prompt').value.trim();
-  if (!prompt) { showStatus('Enter a style prompt'); return; }
-
-  const btn = document.getElementById('gen-btn');
-  btn.classList.add('loading'); btn.querySelector('span').textContent = 'Generating…';
-  const timer = document.getElementById('gen-timer');
-  const t0 = Date.now();
-  const tick = setInterval(() => { timer.textContent = ((Date.now()-t0)/1000).toFixed(0) + 's elapsed…'; }, 1000);
-  showStatus('SDXL generating…', true);
-
-  const fd = new FormData();
-  fd.append('image', file);
-  fd.append('custom_prompt', prompt);
-  fd.append('steps',    document.getElementById('gen-steps').value);
-  fd.append('guidance', document.getElementById('gen-guidance').value);
-  fd.append('strength', document.getElementById('gen-strength').value);
-  fd.append('seed',     document.getElementById('gen-seed').value);
-  const ref = document.getElementById('gen-ref').files[0];
-  if (ref) fd.append('reference_image', ref);
-
-  try {
-    const res = await fetch(API + '/generate', { method:'POST', body: fd });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    document.getElementById('gen-result-panel').style.display = 'grid';
-    const ri = document.getElementById('gen-result-img');
-    const mi = document.getElementById('gen-mask-img');
-    ri.src = 'data:image/jpeg;base64,' + data.result;
-    mi.src = 'data:image/jpeg;base64,' + data.mask;
-    ri.classList.add('show'); mi.classList.add('show');
-    showStatus('Generated in ' + data.elapsed_s + 's');
-    timer.textContent = 'Done in ' + data.elapsed_s + 's';
-  } catch(e) {
-    showStatus('Error: ' + e.message);
-    timer.textContent = '';
-  }
-  clearInterval(tick);
-  btn.classList.remove('loading'); btn.querySelector('span').textContent = 'Generate';
-}
-
-// ── MASK PREVIEW ──────────────────────────────────────────────────────────
-async function runMaskPreview(input) {
-  if (!input.files[0]) return;
-  
-  document.getElementById('mask-file-name').textContent = input.files[0].name;
-  const orig = document.getElementById('mask-orig');
-  orig.src = URL.createObjectURL(input.files[0]);
-  orig.classList.add('show');
-  showStatus('Segmenting hair…', true);
-
-  const fd = new FormData();
-  fd.append('image', input.files[0]);
-  try {
-    const res = await fetch(API + '/mask_preview', { method:'POST', body: fd });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    const mi = document.getElementById('mask-mask-img');
-    const oi = document.getElementById('mask-overlay-img');
-    mi.src = 'data:image/jpeg;base64,' + data.mask;
-    oi.src = 'data:image/jpeg;base64,' + data.overlay;
-    mi.classList.add('show'); oi.classList.add('show');
-    showStatus('Mask complete');
-  } catch(e) { showStatus('Error: ' + e.message); }
-}
-
-// ── CONSULT ───────────────────────────────────────────────────────────────
-async function runConsult() {
-  
-  const style = document.getElementById('con-style').value.trim();
-  if (!style) { showStatus('Enter a style name'); return; }
-  const btn = document.getElementById('con-btn');
-  btn.classList.add('loading'); btn.querySelector('span').textContent = 'Consulting…';
-  showStatus('Generating maintenance plan…', true);
-
-  const fd = new FormData();
-  fd.append('style_name',  style);
-  fd.append('face_shape',  document.getElementById('con-shape').value);
-  fd.append('jaw_width',   document.getElementById('con-jaw').value);
-  fd.append('fore_width',  document.getElementById('con-fore').value);
-  fd.append('cheek_width', '1.0');
-  fd.append('ratio',       '1.5');
-
-  try {
-    const res = await fetch(API + '/consult', { method:'POST', body: fd });
-    if (!res.ok) throw new Error(await res.text());
-    const d = await res.json();
-    renderConsult(d);
-    showStatus('Consultation ready');
-  } catch(e) { showStatus('Error: ' + e.message); }
-  btn.classList.remove('loading'); btn.querySelector('span').textContent = 'Get Plan';
-}
-
-function renderConsult(d) {
-  const el = document.getElementById('consult-result');
-  el.innerHTML = `
-    <p style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--ivory);margin-bottom:1.2rem">
-      ${d.maintenance_title || ''}
-    </p>
-    <div class="consult-cards">
-      <div class="consult-card">
-        <p class="consult-card-title">Schedule</p>
-        <ul>
-          ${(d.schedule||[]).map(s=>`<li>${s.label}<span>${s.value}</span></li>`).join('')}
-          <li>Salon return<span>${d.salon_return||'–'}</span></li>
-        </ul>
-      </div>
-      <div class="consult-card">
-        <p class="consult-card-title">Styling steps</p>
-        <ul>
-          ${(d.maintenance_steps||[]).map(s=>`<li>${s}</li>`).join('')}
-        </ul>
-      </div>
-      <div class="consult-card">
-        <p class="consult-card-title">Products</p>
-        <ul>
-          ${(d.products||[]).map(p=>`
-            <li style="flex-direction:column;align-items:flex-start">
-              <span style="font-size:.62rem;color:var(--gold);letter-spacing:.1em">${p.type}</span>
-              <span class="product-name">${p.name}</span>
-              <span class="product-why">${p.why}</span>
-            </li>
-          `).join('')}
-        </ul>
-      </div>
-    </div>
-    <p style="font-size:.78rem;color:var(--mist);margin-top:1rem;border-top:1px solid var(--border);padding-top:.8rem">
-      ${d.salon_note||''}
-    </p>`;
-}
-
-// ── UTILS ─────────────────────────────────────────────────────────────────
-function toB64(file) {
-  return new Promise((res, rej) => {
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
     const r = new FileReader();
-    r.onload = () => res(r.result);
-    r.onerror = rej;
-    r.readAsDataURL(file);
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
   });
 }
 
-function setPhotoName(input) {
-  document.getElementById('an-photo-name').textContent = input.files[0]?.name || '';
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Render Results ─────────────────────────────────────────────────────────
+function renderResults(data) {
+  const section = document.getElementById('results-section');
+  const strip   = document.getElementById('profile-strip');
+  const grid    = document.getElementById('styles-grid');
+
+  const p = data.profile || {};
+  const m = p.metrics   || {};
+  const faceShape = p.face_shape || state.metrics.face_shape || '—';
+
+  // Shape label top right
+  document.getElementById('result-shape-label').textContent = faceShape;
+
+  // Profile strip
+  strip.innerHTML = [
+    ['Face Shape',    faceShape],
+    ['Ratio',         m.elongation_ratio || state.metrics.ratio || '—'],
+    ['Jaw / Fore',    m.jaw_fore_ratio   || '—'],
+    ['Cheek / Jaw',   m.cheek_jaw_ratio  || '—'],
+    ['Engine',        data.vision ? 'Vision AI' : 'Text AI'],
+    ['Time',          data.elapsed_s ? data.elapsed_s + 's' : '—'],
+  ].map(([label, val]) => `
+    <div class="profile-item">
+      <span class="profile-item-label">${label}</span>
+      <span class="profile-item-val">${val}</span>
+    </div>
+  `).join('');
+
+  const styles = (data.styles || []).slice(0, 4);
+  window._lastStyles = styles;
+
+  // Length tag helper
+  const lengthTag = name => {
+    const n = (name || '').toLowerCase();
+    if (/pixie|crop|buzz|short/.test(n)) return 'Short';
+    if (/bob|lob|mid|medium|shoulder/.test(n)) return 'Medium';
+    if (/long|waist|length/.test(n)) return 'Long';
+    if (/curl|wave|braid|texture|shag/.test(n)) return 'Textured';
+    return 'Signature';
+  };
+
+  grid.innerHTML = styles.map((s, i) => {
+    const maint = s.maintenance || {};
+    const products = maint.products || [];
+    const steps = maint.steps || [];
+    const trimW = maint.trim_weeks ? `${maint.trim_weeks}w` : '—';
+    const washD = maint.wash_days  ? `${maint.wash_days}d`  : '—';
+    const growTip = maint.grow_out_tip || '';
+
+    const productsHtml = products.slice(0, 3).map(pr => `
+      <div class="product-row">
+        <span class="product-type">${pr.type || ''}</span>
+        <span class="product-name">${pr.name || ''}</span>
+      </div>
+    `).join('');
+
+    const stepsHtml = steps.length ? `
+      <div style="margin-bottom:1.5rem;">
+        <span class="products-label">Styling Steps</span>
+        ${steps.map((st, si) => `
+          <div class="product-row">
+            <span class="product-type" style="min-width:22px;">${si + 1}.</span>
+            <span class="product-name">${st}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
+    const growHtml = growTip ? `
+      <div style="margin-bottom:1.25rem; padding:0.65rem 0.9rem; background:rgba(201,169,110,0.04); border-left:1px solid rgba(201,169,110,0.2);">
+        <span style="font-size:0.5rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--mist);display:block;margin-bottom:0.3rem;">Grow-out tip</span>
+        <span style="font-size:0.68rem;color:var(--mist);line-height:1.7;">${growTip}</span>
+      </div>
+    ` : '';
+
+    return `
+    <div class="style-card" id="style-card-${i}">
+      <div class="style-card-bg-num">${i + 1}</div>
+
+      <div class="style-num">Style 0${i + 1}</div>
+      <div class="style-name">${s.name || 'Signature Look ' + (i + 1)}</div>
+      <span class="style-length-tag">${lengthTag(s.name)}</span>
+
+      <p class="style-why">${s.why_this_face || ''}</p>
+
+      ${(maint.trim_weeks || maint.wash_days) ? `
+        <div class="style-maintenance">
+          <div class="maint-cell">
+            <span class="maint-label">Trim</span>
+            <span class="maint-val">${trimW}</span>
+          </div>
+          <div class="maint-cell">
+            <span class="maint-label">Wash</span>
+            <span class="maint-val">${washD}</span>
+          </div>
+          <div class="maint-cell">
+            <span class="maint-label">Effort</span>
+            <span class="maint-val">${i < 2 ? 'Low' : 'Med'}</span>
+          </div>
+        </div>
+      ` : ''}
+
+      ${stepsHtml}
+
+      ${productsHtml ? `
+        <div class="style-products">
+          <span class="products-label">Recommended Products</span>
+          ${productsHtml}
+        </div>
+      ` : ''}
+
+      ${growHtml}
+
+      ${s.sdxl_prompt ? `
+        <div class="style-prompt-wrap">
+          <span class="style-prompt-label">AI Prompt</span>
+          <div class="style-prompt">${s.sdxl_prompt}</div>
+        </div>
+      ` : ''}
+
+      <button class="style-generate-btn" onclick="generateStyle(${i})">
+        <span>Apply This Style to My Photo</span>
+      </button>
+    </div>`;
+  }).join('');
+
+  // Show section then stagger card reveals
+  section.className = 'results-section visible';
+  requestAnimationFrame(() => {
+    section.classList.add('revealed');
+    styles.forEach((_, i) => {
+      setTimeout(() => {
+        const card = document.getElementById('style-card-' + i);
+        if (card) card.classList.add('revealed');
+      }, 150 + i * 120);
+    });
+  });
+
+  setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+// ── Generate style ─────────────────────────────────────────────────────────
+async function generateStyle(idx) {
+  const style = (window._lastStyles || [])[idx];
+  if (!style || !state.imageBlob) {
+    toast('Upload a photo first to generate a style', 'error');
+    return;
+  }
+
+  const btn = document.querySelectorAll('.style-generate-btn')[idx];
+  btn.textContent = '⏳ Generating…';
+  btn.disabled = true;
+
+  try {
+    const fd = new FormData();
+    fd.append('image', state.imageBlob, 'photo.jpg');
+    fd.append('custom_prompt', style.sdxl_prompt || style.name);
+    fd.append('seed', String(Math.floor(Math.random() * 9999)));
+    fd.append('steps', '30');
+    fd.append('guidance', '8.0');
+    fd.append('strength', '0.95');
+
+    const res = await fetch(getBackendUrl() + '/generate', { method: 'POST', body: fd });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || 'Generation failed');
+    }
+
+    const data = await res.json();
+
+    // Show result in a new tab
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <!DOCTYPE html><html><head>
+      <title>ÉLUME — ${style.name}</title>
+      <style>body{margin:0;background:#0E0D0B;display:flex;gap:2px;} img{max-width:50%;max-height:100vh;object-fit:contain;}</style>
+      </head><body>
+      <img src="data:image/jpeg;base64,${data.original}" alt="Original">
+      <img src="data:image/jpeg;base64,${data.result}" alt="Result">
+      </body></html>
+    `);
+
+    toast('Style generated — opening preview', 'success');
+
+  } catch (err) {
+    toast('Generation error: ' + err.message, 'error');
+  } finally {
+    btn.textContent = 'Generate This Style →';
+    btn.disabled = false;
+  }
 }
 </script>
 </body>
