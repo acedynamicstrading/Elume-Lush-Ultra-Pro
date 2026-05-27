@@ -1202,7 +1202,7 @@
 <div class="admin-panel" id="admin-panel">
   <div class="admin-row">
     <span class="admin-label">API</span>
-    <input class="admin-input" type="text" id="backend-url" value="https://your-ngrok-domain.ngrok-free.app" placeholder="https://…ngrok-free.app" onchange="checkHealth()">
+    <input class="admin-input" type="text" id="backend-url" value="https://data-silicon-studio.ngrok-free.dev" placeholder="https://…ngrok-free.dev" onchange="checkHealth()">
     <div class="status-dot" id="status-dot"></div>
   </div>
 </div>
@@ -1220,7 +1220,7 @@
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
 // Set your ngrok URL here — clients never see this
-const BACKEND_URL = 'https://your-ngrok-domain.ngrok-free.app';
+const BACKEND_URL = 'https://data-silicon-studio.ngrok-free.dev';
 
 function getBackendUrl() {
   const input = document.getElementById('backend-url');
@@ -1229,15 +1229,17 @@ function getBackendUrl() {
 
 // ── Hidden admin panel — triple-click logo ─────────────────────────────────
 let _logoClicks = 0, _logoTimer = null;
-document.getElementById('logo-trigger').addEventListener('click', () => {
+document.getElementById('logo-trigger').addEventListener('click', function(e) {
+  e.stopPropagation();
   _logoClicks++;
-  clearTimeout(_logoTimer);
-  _logoTimer = setTimeout(() => { _logoClicks = 0; }, 600);
+  if (_logoTimer) clearTimeout(_logoTimer);
+  _logoTimer = setTimeout(() => { _logoClicks = 0; }, 800);
   if (_logoClicks >= 3) {
     _logoClicks = 0;
+    clearTimeout(_logoTimer);
     const panel = document.getElementById('admin-panel');
-    panel.classList.toggle('open');
-    if (panel.classList.contains('open')) checkHealth();
+    const isOpen = panel.classList.toggle('open');
+    if (isOpen) checkHealth();
   }
 });
 const state = {
